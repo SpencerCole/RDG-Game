@@ -99,7 +99,7 @@ class Game(object):
         self.maze = Maze(width=25, height=17)
         self.menu_active = True
         self.input = None
-        self.selected_menu = 'Main Menu'
+        self.selected_menu = ['Main Menu']
         self.selected = 0
         self.previous_menus = []
         self._run()
@@ -119,10 +119,23 @@ class Game(object):
             self._selection(1)
             self._drawMainMenu()
         if self.input == '<Ctrl-j>':
-            choice = self.menu[self.selected_menu].keys()[self.selected]
-            self.menu[self.selected_menu][choice]()
-            self.selected_menu = choice
+
+            self.selected_menu.append('Options')
+            self.selected_menu.append(self._getFromMenu(self.selected_menu).keys()[self.selected])
+
+            for action in self._getFromMenu(self.selected_menu)['Actions']:
+                action()
+
+
+            if self._getFromMenu(self.selected_menu)['Next Menu']:
+                # this will break with inventory actions.
+                self.selected_menu.append('Next Menu')
+                self.selected_menu.append(self._getFromMenu(self.selected_menu).keys()[0])
+
+
             self._refreshScreen()
+
+
 
         if self.input == '<ESC>' or self.input == '<BACKSPACE>':
             self._exit()
@@ -131,12 +144,37 @@ class Game(object):
 
     def _drawMainMenu(self):
         self.menu = {
-            'Main Menu': {'Start Game': self._refreshScreen, 'Exit Game': self._exit},
-            'Start Game': {'Empty': None, 'Nothing': None}
+            'Main Menu': {
+                'Options': {
+                    'Start Game': {
+                        'Actions': [self._pass],
+                        'Next Menu': {
+                            'Start Game': {
+                                'Options': {
+                                    'Inventory': {
+                                        'Actions': [self._pass],
+                                        'Next Menu': self._getInventory()
+                                    },
+                                    'Search': {
+                                        'Actions': [self._searchMaze],
+                                        'Next Menu': None
+                                    }
+                                },
+                                'Display': 'Action Menu'
+                            }
+                        }
+                    },
+                    'Exit Game': {
+                        'Actions': [self._exit],
+                        'Next Menu': None
+                    }
+                },
+                'Display': 'Main Menu'
+            },
         }
 
         # Border
-        if not self.selected_menu == 'Main Menu':
+        if not len(self.selected_menu) == 1:
             for y in range(self.window.height - (self.window.height / 3)):
                 y += self.window.height / 3
                 if y == self.window.height - 1:
@@ -151,13 +189,15 @@ class Game(object):
                     self.a[y, self.menu_width] = font.BOX_DRAWINGS_DOUBLE_VERTICAL
 
         # Title
-        title = '- {} -'.format(self.selected_menu)
-        middle = (self.menu_width / 2) - (len(title) / 2)
 
-        self.a[self.window.height / 3 + 1, middle:middle+len(self.selected_menu)] = [yellow(bold(self.selected_menu))]
+        title = '- {} -'.format(self._getFromMenu(self.selected_menu)['Display'])
+        #title = '- {} -'.format(self.menu[self.selected_menu]['Display'])
+        middle = (self.menu_width / 2) - (len(title) / 2)
+        self.a[self.window.height / 3 + 1, middle:middle+len(title)] = [yellow(bold(title))]
 
         # Choices
-        for i, item in enumerate(self.menu[self.selected_menu].keys()):
+        #for i, item in enumerate(self.menu[self.selected_menu]['Options'].keys()):
+        for i, item in enumerate(self._getFromMenu(self.selected_menu)['Options'].keys()):
             y = self.window.height / 3 + 3
             item = '- ' + item
             if self.selected == i:
@@ -165,24 +205,86 @@ class Game(object):
             else:
                 self.a[y + i, 2:2+len(item)] = [item]
 
-    def _selection(self, dir):
-        if self.selected + dir < 0:
-            self.selected = len(self.menu[self.selected_menu]) - 1
-        elif self.selected + dir > len(self.menu[self.selected_menu]) - 1:
-            self.selected = 0
-        else:
-            self.selected += dir
+    def _getInventory(self):
+        inventory = [
+            {'Level': 1, 'Equipped': False, 'Display-NID': 'Cool Thing', 'Display-ID': 'Ring of Nothing', 'Type': 'Ring', 'Cursed': True, 'Identified':False, 'Stats': {'STR': 0, 'CON': 0, 'DEX': 0, 'INT': 0, 'WIS': 0, 'CHA': 0, 'LUK': 0, 'HGR': 0}},
+            {'Level': 7, 'Equipped': True, 'Display-NID': 'Unknown', 'Display-ID': 'Sword of Coolness', 'Type': 'Sword', 'Cursed': False, 'Identified':True, 'Stats': {'STR': 1, 'CON': 1, 'DEX': 1, 'INT': 1, 'WIS': 1, 'CHA': 1, 'LUK': 10, 'HGR': 0}},
+        ]
+
+        inventory_menu = {
+            'Inventory': {
+                'Options': {
+                },
+                'Display': 'Inventory'
+            }
+        }
+
+
+        for item in inventory:
+            if item['Identified']:
+                name = item['Display-ID']
+            else:
+                name = item['Display-NID']
+
+            name = name + ' - ' + item['Level']
+
+            if item['Equipped']:
+                name = name + ' *'
+
+            thing = {
+                name: {
+                    'Actions': [self._pass], # change to type specific actions
+                    'Next Menu': None
+                },
+            }
+            inventory_menu['Inventory']['Options'].append(item)
+
+        back = {
+            'Back': {
+                'Actions': [self._menuBack],
+                'Next Menu': None
+            }
+        }
+
+        inventory_menu['Inventory']['Options']. append(back)
+
+
+        return inventory_menu
+
+    def _menuBack():
+        for i in range(2):
+            self.selected_menu.pop()
+        return
+
+    def _getFromMenu(self, mapList):
+        return reduce(lambda d, k: d[k], mapList, self.menu)
+
+    def _searchMaze(self):
+        x = x + 1
+
+
+    def _pass(self):
+        print('Pass')
 
 
     def _refreshScreen(self):
         self.a = FSArray(self.window.height, self.window.width)
-        self._drawStatus()
-        self._drawMaze()
+        #self._drawStatus()
+        #self._drawMaze()
         self._drawMainMenu()
 
 
     def _exit(self):
         sys.exit(0)
+
+
+    def _selection(self, dir):
+        if self.selected + dir < 0:
+            self.selected = len(self._getFromMenu(self.selected_menu)) - 1
+        elif self.selected + dir > len(self._getFromMenu(self.selected_menu)) - 1:
+            self.selected = 0
+        else:
+            self.selected += dir
 
 
     def _drawStatus(self):
@@ -226,9 +328,8 @@ class Game(object):
                 health_bad = '-' * (int(health_width - health / full_health * health_width) + (health % full_health > 0))
                 health_good = font.WHITE_SQR * int(health / full_health * health_width)
                 health_text = ' [{}]'.format(health_good + health_bad)
-                alt_health_text = 'HP: ' + str(int(health)) + ' / ' + str(int(full_health)) + health_text
+                alt_health_text = 'HP: {} / {} {}'.format(int(health), int(full_health), health_text)
                 self.a[y, 2:2+len(alt_health_text)] = (red(alt_health_text),)
-                #self.a[y + 1, 2:2+len(health_text)] = (red(health_text),)
 
             # Draw mana
             if y == 4:
@@ -238,7 +339,6 @@ class Game(object):
                 mana_bad = '-' * (int(mana_width - mana / full_mana * mana_width) + (mana % full_mana > 0))
                 mana_good = font.WHITE_SQR * int(mana / full_mana * mana_width)
                 mana_text = '[{}]'.format(mana_good + mana_bad)
-                #alt_mana_text = 'MP: ' + str(int(mana)) + ' / ' + str(int(full_mana)) + mana_text
                 alt_mana_text = 'MP: {} / {} {}'.format(int(mana), int(full_mana), mana_text)
                 self.a[y, 2:2+len(alt_mana_text)] = (blue(alt_mana_text),)
 
