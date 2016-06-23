@@ -39,6 +39,7 @@ class Hero(object):
       'wis': 3, # Wisdom - Mana Points
       'cha': 3, # Charisma - Bartering Selling / Buying
       'luk': 0, # Luck
+      'hunger': 10,
     }
 
 class Maze(object):
